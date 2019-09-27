@@ -102,3 +102,4 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+Chapter1/chap01.py
