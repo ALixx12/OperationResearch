@@ -1,189 +1,201 @@
-# encoding=utf-8
-__author__ = 'ysg'
-# python 矩阵操作lib
 import numpy as np
+from itertools import combinations
+
+# 实体类　Solution
+# 控制类　Simplex
+
+class Solution:
+    def __init__(self):
+        pass
+
+    def set_para(self, A, b, z):
+        # A m*n
+        # b m*1
+        # z 1*(m+1)
+        self.A = A
+        self.b = b
+        self.z = z
+
+        self.m, self.n = A.shape
+        self.x_index = [i for i in range(self.n)]
+
+    def get_init_solution(self):
+        for JB in combinations(range(self.n), self.m):
+            if self._is_solution(JB):
+                JB, JN = self._rearrange(JB)
+                self._set_JB_JN(JB, JN)
+                return True
+        return False
+
+    def _is_solution(self, JB):
+        B = np.hstack([self.A[:, i] for i in JB])
+        # B的行列式的值不为0，则B是一个可逆矩阵
+        if np.linalg.det(B):
+            return True
+        return False
+
+    def _rearrange(self, JB):
+        JN = [i for i in range(self.n) if i not in JB]
+        B = np.hstack([self.A[:, i] for i in JB])
+        N = np.hstack([self.A[:, i] for i in JN])
+        self.z = [self.z[0, i] for i in JB] + [self.z[0, i] for i in JN] + [self.z[0, -1]]
+        self.z = np.matrix([self.z], dtype=float)
+        # 将B转化为单位矩阵
+        # 即(B|N)x=b -> (I|B'N)x=B'b
+        self.A = np.hstack((np.eye(self.m), B.I * N))
+        self.b = np.dot(B.I, self.b)
+        # 相应的重新定义JN，JB
+        self.x_index = list(JB) + list(JN)
+        JB = [i for i in range(self.m)]
+        JN = [i for i in range(self.m, self.n)]
+        # 在目标函数中，使用非基变量替代基变量
+        for i in range(self.m):
+            _change = np.zeros((1, self.n + 1))
+            _change[0, :self.n] = self.A[i, :]
+            _change[0, -1] = -self.b[i, 0]
+            self.z -= _change * self.z[0, i]
+        return JB, JN
+
+    def _set_JB_JN(self, JB, JN):
+        self.JB = JB
+        self.JN = JN
+
+    def is_best(self):
+        best, inf_solution = True, False
+        for i in self.JN:
+            sigma = self.z[0, i]
+            if sigma > 0:
+                best = False
+            elif sigma == 0:
+                inf_solution = True
+        return best, inf_solution
+
+    def get_inVar(self):
+        greatest_sigma = 0
+        for i in self.JN:
+            sigma = self.z[0, i]
+            if greatest_sigma < sigma:
+                greatest_sigma = sigma
+                inVar = i
+        return inVar
+
+    def get_outVar(self, inVar):
+        min_ratio = self.b[self.JB[0], 0] / self.A[self.JB[0], inVar]
+        outVar = self.JB[0]
+        flag = False
+        for i in self.JB[1:]:
+            k = self.A[i, inVar]
+            if k > 0:
+                flag = True
+                _tmp = self.b[i, 0] / k
+                if _tmp < min_ratio:
+                    min_ratio = _tmp
+                    outVar = i
+        if flag == False:
+            return None
+        return outVar
+
+    def in_and_out(self, inVar, outVar):
+        self.A[:, [inVar, outVar]] = self.A[:, [outVar, inVar]]
+        self.x_index[outVar], self.x_index[inVar] = self.x_index[inVar], self.x_index[outVar]
+        self.z[0, inVar], self.z[0, outVar] = self.z[0, outVar], self.z[0, inVar]
+        B = np.hstack([self.A[:, i] for i in self.JB])
+        N = np.hstack([self.A[:, i] for i in self.JN])
+        # 将B转化为单位矩阵
+        # 即(B|N)x=b -> (I|B'N)x=B'b
+        self.A = np.hstack((np.eye(self.m), B.I * N))
+        self.b = np.dot(B.I, self.b)
+        # 在目标函数中，使用非基变量替代基变量
+
+        for i in range(self.m):
+            _change = np.zeros((1, self.n + 1))
+            _change[0, :self.n] = self.A[i, :]
+            _change[0, -1] = -self.b[i, 0]
+            self.z -= _change * self.z[0, i]
+
+    def getX(self):
+        x = [0] * self.n
+        for i in self.JB:
+            x[self.x_index[i]] = self.b[i, 0]
+        return x
 
 
 class Simplex:
-
     def __init__(self):
-        # 系数矩阵
-        self._A = ""
-        self._b = ""
-        # 约束
-        self._c = ''
-        # 基变量的下标集合
-        self._B = ''
-        # 约束个数
-        self.row = 0
+        self.solution = Solution()
 
-    def solve(self, filename):
-        # 读取文件内容，文件结构前两行分别为 变量数 和 约束条件个数
-        # 接下来是系数矩阵
-        # 然后是b数组
-        # 然后是约束条件c
-        # 假设线性规划形式是标准形式（都是等式）
+        # 0 正常，尚未得到最优解，继续迭代
+        # 1 无解，无界解
+        # 2 达到最优解
+        # 3 问题有无数个最优解
+        self.status = 0
 
-        A = []
-        b = []
-        c = []
-        with open(filename, 'r') as f:
-            self.var = int(f.readline())
-            self.row = int(f.readline())
+    def set_para(self, A, b, z):
+        # A,b,z 需以矩阵的形式输入
+        self.solution.set_para(A, b, z)
 
-            for i in range(self.row):
-                x = map(int, f.readline().strip().split(' '))
-                A.append(x)
-            b = (map(int, list(f.readline().split(' '))))
-            c = (map(int, list(f.readline().split(' '))))
+    def output_result(self):
+        self._main()
+        if self.status == 1:
+            print("此问题无界")
+        elif self.status == 2:
+            print("此问题有一个最优解")
+        elif self.status == 3:
+            print("此问题有无穷多个最优解")
 
-        self._A = np.array(A, dtype=float)
-        self._b = np.array(b, dtype=float)
-        self._c = np.array(c, dtype=float)
-        # self._A = np.array([[3,-1,1,-2,0,0],[2,1,0,1,1,0],[-1,3,0,-3,0,1]],dtype=float)
-        # self._b = np.array([-3,4,12],dtype=float)
-        # self._c = np.array([-7, 7, -2, -1, -6, 0],dtype=float)
-        self._B = list()
-        self.row = len(self._b)
-        self.var = len(self._c)
-        (x, obj) = self.Simplex(self._A, self._b, self._c)
-        self.pprint(x, obj, A)
+    def _main(self):
+        # 获得初始可行解
+        self._get_init_solution()
+        if self.status == 1:
+            return
 
-    def pprint(self, x, obj, A):
-        px = ['x_%d = %f' % (i + 1, x[i]) for i in range(len(x))]
-        print(','.join(px))
-        print('objective value is : %f' % obj)
-        print('------------------------------')
-        for i in range(len(A)):
-            print('%d-th line constraint value is : %f' % (i + 1, x.dot(A[i])))
+        while True:
+            print("--------------------")
+            print("z:", self.solution.z[0, -1])
+            print("x:", self.solution.getX())
+            # 最优性检验
+            self._is_best()
+            if self.status in (2, 3):
+                return
 
-    # 添加人工变量得到一个初始解
-    def InitializeSimplex(self, A, b):
+            # 换入换出
+            self._mainloop()
+            if self.status in (1, 2):
+                return
 
-        b_min, min_pos = (np.min(b), np.argmin(b))  # 得到最小bi
+    def _get_init_solution(self):
+        if self.solution.get_init_solution():
+            self.status = 0
+        else:
+            self.status = 1
 
-        # 将bi全部转化成正数
-        if (b_min < 0):
-            for i in range(self.row):
-                if i != min_pos:
-                    A[i] = A[i] - A[min_pos]
-                    b[i] = b[i] - b[min_pos]
-            A[min_pos] = A[min_pos] * -1
-            b[min_pos] = b[min_pos] * -1
+    def _is_best(self):
+        best, inf_solution = self.solution.is_best()
+        if best == True and inf_solution == False:
+            self.status = 2
+        elif best == True and inf_solution == True:
+            self.status = 3
+        else:
+            self.status = 0
 
-        # 添加松弛变量
-        slacks = np.eye(self.row)
-        A = np.concatenate((A, slacks), axis=1)
-        c = np.concatenate((np.zeros(self.var), np.ones(self.row)), axis=1)
-        # 松弛变量全部加入基,初始解为b
-        new_B = [i + self.var for i in range(self.row)]
-
-        # 辅助方程的目标函数值
-        obj = np.sum(b)
-
-        c = c[new_B].reshape(1, -1).dot(A) - c
-        c = c[0]
-        # entering basis
-        e = np.argmax(c)
-
-        while c[e] > 0:
-            theta = []
-            for i in range(len(b)):
-                if A[i][e] > 0:
-                    theta.append(b[i] / A[i][e])
-                else:
-                    theta.append(float("inf"))
-
-            l = np.argmin(np.array(theta))
-
-            if theta[l] == float('inf'):
-                print('unbounded')
-                return False
-
-            (new_B, A, b, c, obj) = self._PIVOT(new_B, A, b, c, obj, l, e)
-
-            e = np.argmax(c)
-
-        # 如果此时人工变量仍在基中，用原变量去替换之
-        for mb in new_B:
-            if mb >= self.var:
-                row = mb - self.var
-                i = 0
-                while A[row][i] == 0 and i < self.var:
-                    i += 1
-                (new_B, A, b, c, obj) = self._PIVOT(new_B, A, b, c, obj, new_B.index(mb), i)
-
-        return (new_B, A[:, 0:self.var], b)
-
-    # 算法入口
-    def Simplex(self, A, b, c):
-        B = ''
-        (B, A, b) = self.InitializeSimplex(A, b)
-
-        # 函数目标值
-        obj = np.dot(c[B], b)
-
-        c = np.dot(c[B].reshape(1, -1), A) - c
-        c = c[0]
-
-        # entering basis
-        e = np.argmax(c)
-        # 找到最大的检验数，如果大于0，则目标函数可以优化
-        while c[e] > 0:
-            theta = []
-            for i in range(len(b)):
-                if A[i][e] > 0:
-                    theta.append(b[i] / A[i][e])
-                else:
-                    theta.append(float("inf"))
-
-            l = np.argmin(np.array(theta))
-
-            if theta[l] == float('inf'):
-                print('unbounded')
-                return False
-
-            (B, A, b, c, obj) = self._PIVOT(B, A, b, c, obj, l, e)
-
-            e = np.argmax(c)
-
-        x = self._CalculateX(B, A, b, c)
-        return (x, obj)
-
-    # 得到完整解
-    def _CalculateX(self, B, A, b, c):
-
-        x = np.zeros(self.var, dtype=float)
-        x[B] = b
-        return x
-
-    # 基变换
-    def _PIVOT(self, B, A, b, c, z, l, e):
-        # main element is a_le
-        # l represents leaving basis
-        # e represents entering basis
-
-        main_elem = A[l][e]
-        # scaling the l-th line
-        A[l] = A[l] / main_elem
-        b[l] = b[l] / main_elem
-
-        # change e-th column to unit array
-        for i in range(self.row):
-            if i != l:
-                b[i] = b[i] - A[i][e] * b[l]
-                A[i] = A[i] - A[i][e] * A[l]
-
-        # update objective value
-        z -= b[l] * c[e]
-
-        c = c - c[e] * A[l]
-
-        # change the basis
-        B[l] = e
-
-        return B, A, b, c, z
+    def _mainloop(self):
+        inVar = self.solution.get_inVar()
+        outVar = self.solution.get_outVar(inVar)
+        # 未找到换出基变量，此问题有无界解
+        if outVar == None:
+            self.status = 1
+            return
+        self.solution.in_and_out(inVar, outVar)
 
 
-s = Simplex()
-s.solve('pro.txt')
+if __name__ == "__main__":
+    s = Simplex()
+    A = np.matrix([[30, 20, 1, 0, 0],
+                   [5, 1, 0, 1, 0],
+                   [1, 0, 0, 0, 1]])
+
+    b = np.matrix([[160, 15, 4]]).T
+    #             sigma,...,z0
+    z = np.matrix([[5, 2, 0, 0, 0, 0]])
+    s.set_para(A, b, z)
+    s.output_result()
