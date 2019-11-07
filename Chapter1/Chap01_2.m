@@ -10,7 +10,7 @@
 %?IB 为最优基变量下标;IN为非基变量下标；SA 为松弛变量下标
 %?xSA为松弛量取值;sigma为最终检验数(可不显示)
 %?A0为最终单纯性表(第一列为b);
-%?InverseOfB=inv(B)为基矩阵 B的逆矩阵(用于灵敏度分析)。输出项按需要选择  %?By? Gongnong?Li?2013
+%?InverseOfB=inv(B)为基矩阵 B的逆矩阵(用于灵敏度分析)。输出项按需要选择
 function [xstar,fxstar,iter,A0,IB,IN,SA,xSA,InverseOfB,exitflag]=MMSimplex(A,b,c)
 A0=A;
 [m,n]=size(A0);

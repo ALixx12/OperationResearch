@@ -5,7 +5,6 @@
 % x>=0 
 %  这里 A\in R^{m\times n},c,x'\im R^m,b\geq 0 
 %  且矩阵 A 中有一个单位子矩阵，不需要引入人工变量
-% By Gongnong Li 2013 
 function [xstar,fxstar,iter]=Ssimplex(A,b,c) 
 [m,n]=size(A);E=eye(m);IB=zeros(1,m);k=0; 
 for i = 1:m 
