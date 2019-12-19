@@ -85,7 +85,7 @@ while (length(IR)~=0)&(flag==0) %这表明有人工变量才需要求解第一阶段问题
             %比值最小的theta 值，选换出变量，Temp 为换出变量下标。这时A0(Temp,jj+1)为旋转主元
             for i=1:m
                 if i~=Temp
-                    A0(i,:)=A0(i,:)‐(A0(Temp,:)/A0(Temp,jj+1))*A0(i,jj+1);
+                    A0(i,:)=A0(i,:)-(A0(Temp,:)/A0(Temp,jj+1))*A0(i,jj+1);
                 else
                     A0(Temp,:)=A0(Temp,:)/A0(Temp,jj+1);
                 end
@@ -147,22 +147,23 @@ else
                 else
                     A0(Temp,:)=A0(Temp,:)/A0(Temp,jj+1);
                 end
-                TT=IB(Temp);IB(Temp)=jj;IN(jj)=TT; x(IB)=A0(:,1)';
-                N=1:n;N(IB)=[];IN=N; IN(find(IN==0))=[];x(IN)=zeros(1,length(IN));
-                cB=c(IB);
-                %新的基可行解及其价值系数
-                sigma=c'-cB'*A0(:,2:n+1);
-                t=length(find(sigma>0)); %再次计算检验数并设检验数中有t个大于零
             end
-            k=k+1;
+            TT=IB(Temp);IB(Temp)=jj;IN(jj)=TT; x(IB)=A0(:,1)';
+            N=1:n;N(IB)=[];IN=N; IN(find(IN==0))=[];x(IN)=zeros(1,length(IN));
+            cB=c(IB);
+            %新的基可行解及其价值系数
+            sigma=c'-cB'*A0(:,2:n+1);
+            t=length(find(sigma>0)); %再次计算检验数并设检验数中有t个大于零
         end
+        k=k+1;
     end
-    if flag==1
-        xstar=[];fxstar=[];A0=[],IB=[];iter=k;
-        disp('原问题为无界解');exitflag=flag;
-    else
-        xstar=zeros(1,n);xstar(IB)=A0(:,1)';fxstar=xstar(IB)*c(IB);iter=k;
-        B=A(:,IB);InverseOfB=inv(B);xSA=x(SA);
-        exitflag=flag;
-    end
-    toc;
+end
+if flag==1
+    xstar=[];fxstar=[];A0=[],IB=[];iter=k;
+    disp('原问题为无界解');exitflag=flag;
+else
+    xstar=zeros(1,n);xstar(IB)=A0(:,1)';fxstar=xstar(IB)*c(IB);iter=k;
+    B=A(:,IB);InverseOfB=inv(B);xSA=x(SA);
+    exitflag=flag;
+end
+toc;
