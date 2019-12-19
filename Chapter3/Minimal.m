@@ -20,13 +20,13 @@ while flag==0
     %则第kk 个产地的产量全部满足第J(kk)个销地。然后将Cost 中的第J(kk)列划去(通过赋值inf 完成)
     if Supply(kk)<Demand(J(kk))
         X(kk,J(kk))=Supply(kk);
-        Demand(J(kk))=Demand(J(kk))‐Supply(kk);
+        Demand(J(kk))=Demand(J(kk))-Supply(kk);
         Supply(kk)=0;
         b(kk,J(kk))=1;
         Cost(kk,:)=inf*ones(1,n);
     elseif Supply(kk)>Demand(J(kk))
         X(kk,J(kk))=Demand(J(kk));
-        Supply(kk)=Supply(kk)‐Demand(J(kk));
+        Supply(kk)=Supply(kk)-Demand(J(kk));
         Demand(J(kk))=0;
         b(kk,J(kk))=1;
         Cost(:,J(kk))=inf*ones(m,1);
